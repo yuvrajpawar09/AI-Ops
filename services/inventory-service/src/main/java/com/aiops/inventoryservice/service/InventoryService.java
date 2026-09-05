@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -61,5 +62,31 @@ public class InventoryService {
         log.warn("Insufficient stock for {} (requested={}) - order {} rejected",
                 productId, quantity, request.orderId());
         return new InventoryResponse(null, request.orderId(), "OUT_OF_STOCK");
+    }
+
+    /**
+     * Phase 6: the actuation surface the rca-agent's restock_inventory
+     * playbook acts on. Adds stock to an existing product (creating it if
+     * absent) and returns {before, after} so the caller can record real
+     * evidence of what changed. Uses compute() for the same reason reserve()
+     * does - it is the atomic per-key path, so a restock racing a concurrent
+     * reservation can't lose an update.
+     */
+    public int[] restock(String productId, int quantity) {
+        int[] beforeAfter = new int[2];
+        stock.compute(productId, (id, currentStock) -> {
+            int available = currentStock == null ? 0 : currentStock;
+            beforeAfter[0] = available;
+            beforeAfter[1] = available + quantity;
+            return beforeAfter[1];
+        });
+        log.warn("Restocked {} by {} units via /admin/restock ({} -> {})",
+                productId, quantity, beforeAfter[0], beforeAfter[1]);
+        return beforeAfter;
+    }
+
+    /** Snapshot of current stock levels, ordered for stable output. */
+    public Map<String, Integer> currentStock() {
+        return new TreeMap<>(stock);
     }
 }

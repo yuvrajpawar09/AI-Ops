@@ -632,8 +632,23 @@ code,
   color: var(--status-critical);
 }
 
+.remediation-log-playbook {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+}
+
 .remediation-log-reason {
   color: var(--text-secondary);
+}
+
+.remediation-log-result--noop {
+  background: rgba(250, 178, 25, 0.15);
+  color: var(--status-warning);
 }
 
 .remediation-log-detail {

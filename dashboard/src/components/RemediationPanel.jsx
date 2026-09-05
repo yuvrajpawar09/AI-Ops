@@ -9,6 +9,7 @@ function RemediationLogEntry({ entry }) {
       <div className="remediation-log-entry-header">
         <span className="remediation-log-action">{entry.action}</span>
         <span className={`remediation-log-result remediation-log-result--${entry.result}`}>{entry.result}</span>
+        {entry.playbook && <span className="remediation-log-playbook">playbook: {entry.playbook}</span>}
       </div>
       <div className="remediation-log-reason">{entry.reason}</div>
       {(entry.request || entry.response) && (

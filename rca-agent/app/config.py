@@ -15,7 +15,10 @@ OLLAMA_TIMEOUT_SECONDS = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "240"))
 
 MAX_INCIDENTS_STORED = int(os.environ.get("MAX_INCIDENTS_STORED", "200"))
 
-# Phase 6: auto-remediation acts on order-service's admin endpoint directly.
+# Phase 6: auto-remediation acts on service admin endpoints directly.
 ORDER_SERVICE_URL = os.environ.get("ORDER_SERVICE_URL", "http://order-service:8081")
+INVENTORY_SERVICE_URL = os.environ.get("INVENTORY_SERVICE_URL", "http://inventory-service:8083")
+# Safety buffer the restock_inventory playbook adds to an exhausted product.
+RESTOCK_BUFFER = int(os.environ.get("RESTOCK_BUFFER", "50"))
 REMEDIATION_CONFIDENCE_THRESHOLD = float(os.environ.get("REMEDIATION_CONFIDENCE_THRESHOLD", "0.85"))
 REMEDIATION_VERIFY_DELAY_SECONDS = float(os.environ.get("REMEDIATION_VERIFY_DELAY_SECONDS", "2"))

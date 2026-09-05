@@ -264,12 +264,16 @@ services:
       ANOMALY_DETECTOR_URL: http://anomaly-detector:8000
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: qwen2.5:3b
-      # Phase 6: auto-remediation target - rca-agent calls this directly.
+      # Phase 6: auto-remediation targets - rca-agent's playbooks call these
+      # admin endpoints directly.
       ORDER_SERVICE_URL: http://order-service:8081
+      INVENTORY_SERVICE_URL: http://inventory-service:8083
     depends_on:
       anomaly-detector:
         condition: service_healthy
       order-service:
+        condition: service_healthy
+      inventory-service:
         condition: service_healthy
       ollama-init:
         condition: service_completed_successfully
