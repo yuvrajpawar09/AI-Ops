@@ -1,0 +1,24 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: order-service
+
+# URLs of downstream services. The env var names (PAYMENT_SERVICE_URL, etc.)
+# are overridden in docker-compose.yml to point at container hostnames instead
+# of localhost, since each service runs in its own container on a shared network.
+services:
+  payment:
+    url: ${PAYMENT_SERVICE_URL:http://localhost:8082}
+  inventory:
+    url: ${INVENTORY_SERVICE_URL:http://localhost:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

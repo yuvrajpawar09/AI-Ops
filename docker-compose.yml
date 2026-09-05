@@ -1,0 +1,316 @@
+services:
+  notification-service:
+    build: ./services/notification-service
+    container_name: notification-service
+    ports:
+      - "8084:8084"
+    labels:
+      # Filebeat's Docker autodiscover (log-pipeline/filebeat.yml) only attaches
+      # a log input to containers carrying this label, so Kafka/Zookeeper/Filebeat's
+      # own noise never ends up in the "logs" topic.
+      aiops_log: "true"
+    networks:
+      - aiops-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  inventory-service:
+    build: ./services/inventory-service
+    container_name: inventory-service
+    ports:
+      - "8083:8083"
+    labels:
+      aiops_log: "true"
+    networks:
+      - aiops-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  payment-service:
+    build: ./services/payment-service
+    container_name: payment-service
+    ports:
+      - "8082:8082"
+    labels:
+      aiops_log: "true"
+    environment:
+      # Overrides application.yml's localhost default: inside the Docker
+      # network, services reach each other by container name, not localhost.
+      NOTIFICATION_SERVICE_URL: http://notification-service:8084
+    networks:
+      - aiops-net
+    depends_on:
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  order-service:
+    build: ./services/order-service
+    container_name: order-service
+    ports:
+      - "8081:8081"
+    labels:
+      aiops_log: "true"
+    environment:
+      PAYMENT_SERVICE_URL: http://payment-service:8082
+      INVENTORY_SERVICE_URL: http://inventory-service:8083
+    networks:
+      - aiops-net
+    depends_on:
+      payment-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+    healthcheck:
+      # Added in Phase 6: rca-agent now calls order-service directly
+      # (admin/config + verification orders), so something needs to depend
+      # on it being healthy the way payment/inventory/notification already do.
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Phase 2: Kafka log pipeline
+  # ---------------------------------------------------------------------------
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - aiops-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      # Exposed to the host so tools running outside Docker (e.g. the Python
+      # consumer_test.py script) can connect to localhost:9092.
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Two listeners: PLAINTEXT is what containers on aiops-net use to reach
+      # Kafka via the hostname "kafka"; PLAINTEXT_HOST is what the host machine
+      # uses via "localhost". Kafka advertises different addresses on each so
+      # both sides can resolve the broker correctly after the initial connect.
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # Topics are created explicitly by kafka-init below, not implicitly on
+      # first write - keeps topic config (partitions/replication) intentional.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    networks:
+      - aiops-net
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # One-shot job: creates the "logs" topic then exits. Runs the same cp-kafka
+  # image (it ships the kafka-topics CLI) purely as a client, not as a broker.
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+          --topic logs --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic logs
+    networks:
+      - aiops-net
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.13.4
+    container_name: filebeat
+    # The official image drops root privileges by default, but reading other
+    # containers' log files under /var/lib/docker/containers requires root.
+    user: root
+    environment:
+      # Beats 8.13.4 bundles a Docker client that mis-negotiates the API
+      # version against newer Docker Desktop engines, failing with an empty
+      # "Error response from daemon: " on startup. Pinning to a version both
+      # sides support (Docker Desktop's own reported floor is 1.44) fixes it.
+      # Verified against Docker Desktop 4.62 / Engine 29.2.1 (API 1.53).
+      DOCKER_API_VERSION: "1.44"
+    volumes:
+      - ./log-pipeline/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      # Where Docker's json-file logging driver actually writes container logs.
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # Lets Filebeat's Docker autodiscover watch container start/stop events
+      # and read labels, so it knows which containers to attach a log input to.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # --strict.perms=false: skip Filebeat's config-file permission check, which
+    # assumes Unix-style permission bits that don't map cleanly when the config
+    # is bind-mounted from a Windows host.
+    command: ["--strict.perms=false"]
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - aiops-net
+
+  # ---------------------------------------------------------------------------
+  # Phase 3: anomaly detection service
+  # ---------------------------------------------------------------------------
+
+  anomaly-detector:
+    build: ./anomaly-detector
+    container_name: anomaly-detector
+    # Deliberately NOT labeled aiops_log=true: its own logs are plain Python
+    # text, not the app's JSON schema, and it's the consumer of the "logs"
+    # topic - shipping its own output back in would be a feedback loop.
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: logs
+    volumes:
+      # Shared with training/train.py (run via `docker compose run`), so a
+      # freshly trained model/threshold/Drain3 state persists across
+      # container restarts and is visible to both.
+      - ./anomaly-detector/models:/app/models
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - aiops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Phase 4: LLM root cause analysis agent
+  # ---------------------------------------------------------------------------
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      # Named volume so a pulled model survives container recreation -
+      # without this, qwen2.5:3b (~2GB) would re-download every restart.
+      - ollama-models:/root/.ollama
+    networks:
+      - aiops-net
+    # No GPU reservation here - runs on CPU, which is fine for a 3B model
+    # invoked only on flagged anomalies, not a hot path. If you have an
+    # NVIDIA GPU and want acceleration, install Ollama natively on the host
+    # instead and point rca-agent at it: set OLLAMA_URL to
+    # http://host.docker.internal:11434 in the rca-agent service below
+    # (Docker Desktop resolves that hostname to the host automatically on
+    # Windows/Mac), then remove/stop this ollama service.
+
+  # One-shot job: waits for the Ollama server to accept connections, then
+  # pulls the model - so `docker compose up` alone is enough, with no
+  # separate manual `ollama pull` step to remember before a demo.
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: "ollama:11434"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        until ollama list >/dev/null 2>&1; do
+          echo "Waiting for Ollama server..."
+          sleep 2
+        done
+        ollama pull qwen2.5:3b
+    networks:
+      - aiops-net
+
+  rca-agent:
+    build: ./rca-agent
+    container_name: rca-agent
+    # Deliberately NOT labeled aiops_log=true, same reasoning as
+    # anomaly-detector: plain Python logs, not the app's JSON schema.
+    ports:
+      - "8100:8100"
+    environment:
+      ANOMALY_DETECTOR_URL: http://anomaly-detector:8000
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:3b
+      # Phase 6: auto-remediation target - rca-agent calls this directly.
+      ORDER_SERVICE_URL: http://order-service:8081
+    depends_on:
+      anomaly-detector:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    networks:
+      - aiops-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Phase 5: dashboard
+  # ---------------------------------------------------------------------------
+
+  dashboard:
+    build:
+      context: ./dashboard
+      args:
+        # Baked into the static JS bundle at image-build time (see
+        # dashboard/Dockerfile) - the browser calls these published host
+        # ports directly, never the internal aiops-net hostnames, since the
+        # dashboard runs on the viewer's machine, not inside the network.
+        VITE_ANOMALY_API_URL: http://localhost:8000
+        VITE_RCA_API_URL: http://localhost:8100
+        VITE_ORDER_API_URL: http://localhost:8081
+    container_name: dashboard
+    ports:
+      - "3000:80"
+    networks:
+      - aiops-net
+    depends_on:
+      anomaly-detector:
+        condition: service_healthy
+      rca-agent:
+        condition: service_healthy
+
+networks:
+  aiops-net:
+    driver: bridge
+
+volumes:
+  ollama-models:

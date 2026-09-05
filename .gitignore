@@ -1,0 +1,144 @@
+# ---------------------------------------------------------------------------
+# Java / Maven  (services/order-service, payment-service, inventory-service,
+#                notification-service)
+# ---------------------------------------------------------------------------
+target/
+build/
+*.class
+*.jar
+*.war
+*.ear
+# Keep the Maven wrapper jar committed if one is ever added - it is required
+# for `./mvnw` to bootstrap on a fresh clone.
+!.mvn/wrapper/maven-wrapper.jar
+# Maven's own scratch output
+release.properties
+dependency-reduced-pom.xml
+pom.xml.versionsBackup
+pom.xml.tag
+pom.xml.next
+pom.xml.releaseBackup
+
+# ---------------------------------------------------------------------------
+# Python  (anomaly-detector, rca-agent, log-pipeline)
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.Python
+pip-log.txt
+
+# ---------------------------------------------------------------------------
+# Node / React / Vite  (dashboard)
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.npm/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Environment files, secrets, certificates
+# ---------------------------------------------------------------------------
+.env
+.env.*
+# ...but a committed template is useful documentation, so keep it:
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+secrets.json
+credentials.json
+service-account*.json
+
+# ---------------------------------------------------------------------------
+# IDE / editor / OS
+# ---------------------------------------------------------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.code-workspace
+.settings/
+.project
+.classpath
+.factorypath
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+*.log
+logs/
+
+# ---------------------------------------------------------------------------
+# Local infrastructure state
+# ---------------------------------------------------------------------------
+# The committed docker-compose.yml deliberately gives Kafka/Zookeeper NO bind
+# mounts (their state is disposable and rebuilt on every `up`), so none of these
+# directories exist today. They are listed defensively in case persistence is
+# added later - broker/ZK data must never be committed.
+kafka-data/
+kafka-logs/
+zookeeper-data/
+zookeeper-logs/
+zk-data/
+data/kafka/
+data/zookeeper/
+# Ollama models are pulled at runtime into a named Docker volume (GBs) -
+# never into the repo.
+ollama-models/
+docker-compose.override.yml
+
+# ---------------------------------------------------------------------------
+# Trained model artifacts  (anomaly-detector/models/)
+# ---------------------------------------------------------------------------
+# Everything in models/ is ignored by default so stray experiment output never
+# gets committed by accident, then the three artifacts a fresh clone actually
+# needs are whitelisted back in. All three are required together:
+#   - lstm_autoencoder.pt : the trained LSTM autoencoder weights (~67 KB)
+#   - threshold.json      : the anomaly cutoff; scorer.try_load_scorer() returns
+#                           None without it, silently disabling ALL detection
+#   - drain3_state.bin    : the Drain3 cluster tree (~1.4 KB). Template IDs must
+#                           match the ones the model was trained on - without it
+#                           Drain3 renumbers clusters from scratch and the
+#                           trained embeddings become meaningless
+anomaly-detector/models/*
+!anomaly-detector/models/.gitkeep
+!anomaly-detector/models/lstm_autoencoder.pt
+!anomaly-detector/models/threshold.json
+!anomaly-detector/models/drain3_state.bin

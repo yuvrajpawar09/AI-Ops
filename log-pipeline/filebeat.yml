@@ -1,0 +1,67 @@
+# Phase 2 log pipeline: Docker container logs -> Filebeat -> Kafka "logs" topic.
+#
+# How this file finds the logs:
+#   Docker's default "json-file" logging driver already writes every
+#   container's stdout to a file at
+#     /var/lib/docker/containers/<container-id>/<container-id>-json.log
+#   as one JSON object per line, e.g.:
+#     {"log":"{\"timestamp\":\"...\",\"level\":\"INFO\",...}\n","stream":"stdout","time":"..."}
+#   We bind-mount that host directory read-only into the Filebeat container
+#   (see docker-compose.yml), so Filebeat can see every container's logs
+#   without any code changes to the services themselves.
+#
+# How it decides WHICH containers to read:
+#   filebeat.autodiscover with the "docker" provider watches the Docker socket
+#   for container start/stop events. The "condition" below only activates a
+#   log input for containers labeled aiops_log: "true" - i.e. our 4 Spring
+#   Boot services - so Kafka/Zookeeper/Filebeat's own logs are never shipped
+#   back into the pipeline.
+#
+# How it turns raw log lines into structured fields:
+#   Step 1 (automatic): the "container" input type already knows the Docker
+#     json-file format and unwraps it, extracting Docker's "log" field into
+#     Filebeat's own "message" field.
+#   Step 2 (decode_json_fields below): our Spring Boot services already write
+#     JSON themselves (via logstash-logback-encoder), so "message" at this
+#     point holds a JSON string like {"timestamp":...,"level":"INFO",
+#     "service":"order-service","traceId":"...","message":"Order created"}.
+#     decode_json_fields parses that string and merges its keys onto the root
+#     of the event (target: ""), overwriting the raw-string "message" field
+#     with the application's actual clean log message.
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: false
+      templates:
+        - condition:
+            contains:
+              docker.container.labels.aiops_log: "true"
+          config:
+            - type: container
+              paths:
+                - "/var/lib/docker/containers/${data.docker.container.id}/*.log"
+              processors:
+                - decode_json_fields:
+                    fields: ["message"]
+                    target: ""
+                    overwrite_keys: true
+                    add_error_key: true
+
+# Enriches every event with container metadata (name, image, labels) under
+# the "container" and "docker" fields - useful context for Phase 3/5 even
+# though it's not required just to get logs flowing.
+processors:
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+output.kafka:
+  hosts: ["kafka:29092"]
+  topic: "logs"
+  partition.round_robin:
+    reachable_only: false
+  required_acks: 1
+  compression: gzip
+
+logging.level: info
+logging.to_stderr: true
