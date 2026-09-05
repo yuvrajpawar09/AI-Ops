@@ -4,6 +4,12 @@
 
 ---
 
+## Team
+
+Built by **Pawar Yuvraj**, **Aditya Suryawanshi**, **Aalok Nikam**, and **Aditya Pawade** — 7th Semester B.Tech CSE, MIT School of Computing, MIT-ADT University, Pune. Team ID: BCC31. Guide: Prof. Karan Mashal.
+
+---
+
 ## The problem
 
 In a microservice architecture, every service logs independently. When a request fails, the evidence is scattered across four different log streams with no shared thread tying them together, so an engineer has to manually correlate timestamps across services to reconstruct what happened. Worse, the failures that matter most are often *logic-level*: nothing crashes, no stack trace appears, and a keyword alert on `ERROR` sees nothing at all — an order is silently declined, a step is skipped, a call quietly gets slower. Those are invisible to grep and expensive to find by hand.
