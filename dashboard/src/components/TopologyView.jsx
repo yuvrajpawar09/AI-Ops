@@ -50,7 +50,7 @@ function edgePoint(from, to, inset) {
   };
 }
 
-export function TopologyView({ anomalies, error }) {
+export function TopologyView({ anomalies, error, status, onRetry }) {
   const health = computeHealth(anomalies?.anomalies, config.UNHEALTHY_WINDOW_MINUTES);
   const nodeById = Object.fromEntries(NODES.map((n) => [n.id, n]));
 
@@ -60,7 +60,7 @@ export function TopologyView({ anomalies, error }) {
         <h2>Service Topology</h2>
       </div>
       {error ? (
-        <PanelError message={error} />
+        <PanelError message={error} status={status} onRetry={onRetry} />
       ) : (
         <>
           <svg className="topology-svg" viewBox="0 0 400 290" role="img" aria-label="Service dependency graph">

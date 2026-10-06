@@ -3,7 +3,7 @@ import re
 
 import requests
 
-from app import config
+from app import config, security
 from app.playbooks.base import Playbook
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ class RestockInventoryPlaybook(Playbook):
         resp = requests.post(
             f"{config.INVENTORY_SERVICE_URL}/admin/restock",
             json=payload,
+            headers=security.service_headers(),
             timeout=10,
         )
         resp.raise_for_status()

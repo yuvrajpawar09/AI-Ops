@@ -25,6 +25,10 @@ services:
       - "8083:8083"
     labels:
       aiops_log: "true"
+    environment:
+      # Phase 8: /admin/restock and /admin/inventory now require this key.
+      # Unset or placeholder and the service refuses to start.
+      SERVICE_API_KEY: ${SERVICE_API_KEY:?set SERVICE_API_KEY in .env - see .env.example}
     networks:
       - aiops-net
     healthcheck:
@@ -67,6 +71,8 @@ services:
     environment:
       PAYMENT_SERVICE_URL: http://payment-service:8082
       INVENTORY_SERVICE_URL: http://inventory-service:8083
+      # Phase 8: /admin/config now requires this key.
+      SERVICE_API_KEY: ${SERVICE_API_KEY:?set SERVICE_API_KEY in .env - see .env.example}
     networks:
       - aiops-net
     depends_on:
@@ -199,6 +205,11 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TOPIC: logs
+      # Phase 8: /anomalies is authenticated. The same JWT_SECRET rca-agent
+      # signs sessions with is used here to verify them, and SERVICE_API_KEY
+      # lets rca-agent's poller and the benchmark scripts read the feed.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env - see .env.example}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:?set SERVICE_API_KEY in .env - see .env.example}
     volumes:
       # Shared with training/train.py (run via `docker compose run`), so a
       # freshly trained model/threshold/Drain3 state persists across
@@ -268,6 +279,17 @@ services:
       # admin endpoints directly.
       ORDER_SERVICE_URL: http://order-service:8081
       INVENTORY_SERVICE_URL: http://inventory-service:8083
+      # Phase 8: issues and verifies session JWTs, holds the service key its
+      # playbooks present to the two admin surfaces, and seeds the first
+      # ADMIN account into the SQLite users table on an empty database.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env - see .env.example}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:?set SERVICE_API_KEY in .env - see .env.example}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?set ADMIN_USERNAME in .env - see .env.example}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env - see .env.example}
+      USERS_DB_PATH: /data/users.db
+    volumes:
+      # Named volume so the users table survives container recreation.
+      - rca-data:/data
     depends_on:
       anomaly-detector:
         condition: service_healthy
@@ -291,16 +313,10 @@ services:
   # ---------------------------------------------------------------------------
 
   dashboard:
-    build:
-      context: ./dashboard
-      args:
-        # Baked into the static JS bundle at image-build time (see
-        # dashboard/Dockerfile) - the browser calls these published host
-        # ports directly, never the internal aiops-net hostnames, since the
-        # dashboard runs on the viewer's machine, not inside the network.
-        VITE_ANOMALY_API_URL: http://localhost:8000
-        VITE_RCA_API_URL: http://localhost:8100
-        VITE_ORDER_API_URL: http://localhost:8081
+    # Phase 8: nothing host-specific is baked into the bundle any more. nginx
+    # in this container reverse-proxies /api/rca and /api/detector to the two
+    # backends over aiops-net, so the browser only ever talks to port 3000.
+    build: ./dashboard
     container_name: dashboard
     ports:
       - "3000:80"
@@ -318,3 +334,4 @@ networks:
 
 volumes:
   ollama-models:
+  rca-data:

@@ -4,7 +4,7 @@ import time
 
 import requests
 
-from app import config
+from app import config, security
 from app.analyzer import analyze_anomaly
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ def _poll(state):
             resp = requests.get(
                 f"{config.ANOMALY_DETECTOR_URL}/anomalies",
                 params={"limit": 100},
+                headers=security.service_headers(),
                 timeout=10,
             )
             resp.raise_for_status()

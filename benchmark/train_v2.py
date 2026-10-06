@@ -38,6 +38,26 @@ from app.timestamps import parse_timestamp  # noqa: E402
 
 SERVICES = ["order-service", "payment-service", "inventory-service", "notification-service"]
 ORDER_URL = "http://localhost:8081/orders"
+def _service_key() -> str:
+    key = os.environ.get("SERVICE_API_KEY", "").strip()
+    if not key:
+        env_file = os.path.join(os.path.dirname(HERE), ".env")
+        if os.path.exists(env_file):
+            with open(env_file, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line.startswith("SERVICE_API_KEY="):
+                        key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        break
+    if not key:
+        raise SystemExit(
+            "SERVICE_API_KEY is not set and could not be read from .env. "
+            "The admin endpoints and /anomalies require it since Phase 8."
+        )
+    return key
+
+
+SERVICE_HEADERS = {"X-Service-Key": _service_key()}
 MODELS_V2 = os.path.join(DETECTOR, "models_v2")
 PROD_DRAIN = os.path.join(DETECTOR, "models", "drain3_state.bin")
 V2_DRAIN = os.path.join(MODELS_V2, "drain3_state.bin")
@@ -149,7 +169,12 @@ def main():
 
     print("[setup] stopping rca-agent and resetting state")
     subprocess.run(["docker", "compose", "stop", "rca-agent"], capture_output=True, text=True)
-    requests.post("http://localhost:8081/admin/config", json={"rejectZeroAmount": False}, timeout=10)
+    requests.post(
+        "http://localhost:8081/admin/config",
+        json={"rejectZeroAmount": False},
+        headers=SERVICE_HEADERS,
+        timeout=10,
+    )
 
     print(f"[traffic] generating {args.train} train + {args.val} val normal orders")
     rng = random.Random(args.seed)

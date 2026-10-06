@@ -5,6 +5,9 @@ spring:
   application:
     name: inventory-service
 
+security:
+  service-api-key: ${SERVICE_API_KEY:}
+
 management:
   endpoints:
     web:

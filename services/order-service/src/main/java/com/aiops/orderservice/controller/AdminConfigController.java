@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Phase 6: the "actuation" surface auto-remediation acts on. Deliberately
- * tiny and unauthenticated - this is a college demo running entirely on
- * localhost, not a production admin API. A real system would put an auth
- * boundary and an audit trail here; rca-agent's own remediationLog is this
- * project's stand-in for that audit trail, kept on the caller's side.
+ * Phase 6: the "actuation" surface auto-remediation acts on. Deliberately tiny.
+ * Phase 8 put an auth boundary in front of it: ServiceKeyFilter requires the
+ * shared SERVICE_API_KEY on every /admin/** request, so only rca-agent's
+ * playbooks (and operators holding the key) can flip runtime config. The audit
+ * trail still lives on the caller's side, in rca-agent's remediationLog.
  */
 @RestController
 @RequestMapping("/admin/config")

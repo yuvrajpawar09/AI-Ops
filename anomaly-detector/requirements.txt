@@ -4,3 +4,4 @@ kafka-python==2.0.2
 drain3==0.9.11
 torch==2.3.1
 python-dateutil==2.9.0.post0
+PyJWT==2.9.0

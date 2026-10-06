@@ -29,6 +29,24 @@ This project builds the full loop that closes that gap: correlate, detect, diagn
 
 ---
 
+## Screenshots
+
+**Landing page** — the public overview at `/`, with the animated pipeline diagram and the measured HDFS comparison.
+
+![The AI-Ops landing page: hero, animated five-stage pipeline diagram, the problem statement, how it works in five steps, capabilities, the HDFS benchmark comparison, tech stack and team.](docs/screenshots/landing.png)
+
+**Sign in** — `/login`. Access is role-based and enforced on the backend; the credentials are whatever you set in your own `.env`.
+
+![The sign-in form at /login, with username and password fields on a dark card.](docs/screenshots/login.png)
+
+**Operations dashboard** — `/app` as an ADMIN: service topology, live anomaly timeline, incident report cards with confidence meters, the remediation audit log, and the trigger panel.
+
+![The AI-Ops dashboard signed in as an ADMIN, showing the service topology panel, the manual trigger panel, the live anomaly timeline, incident report cards with confidence meters, and the remediation action log.](docs/screenshots/dashboard.png)
+
+ENGINEER sees the same feeds without the trigger panel; VIEWER additionally loses the acknowledge buttons. A dark/light toggle sits in the header.
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -207,9 +225,33 @@ The cold-start trace v2 flagged was structurally perfect — 10 events, correct 
 >
 > Restart Docker Desktop and confirm the new cap with `docker info --format "{{.MemTotal}}"` (expect ~10.4e9, not ~7.6e9). On Docker Desktop for macOS the equivalent setting is *Settings → Resources → Memory*.
 
+**Create the environment file first.** Every secret comes from `.env`, which is gitignored; nothing is hardcoded and no service will start without it.
+
 ```bash
 git clone https://github.com/yuvrajpawar09/AI-Ops.git
 cd AI-Ops
+cp .env.example .env
+```
+
+Then edit `.env` and replace all four values. The example values are deliberately rejected, so the stack refuses to start until you do:
+
+| Variable | Required | Used by | Notes |
+|---|---|---|---|
+| `JWT_SECRET` | yes | rca-agent (signs), anomaly-detector (verifies) | >= 32 chars; both services must see the same value. `openssl rand -hex 32` |
+| `SERVICE_API_KEY` | yes | rca-agent, order-service, inventory-service, benchmark scripts | >= 16 chars; guards `/admin/**`. `openssl rand -hex 24` |
+| `ADMIN_USERNAME` | yes | rca-agent | >= 3 chars; the first ADMIN account, seeded only when the users table is empty |
+| `ADMIN_PASSWORD` | yes | rca-agent | >= 8 chars; bcrypt-hashed on first boot and never stored in plaintext |
+| `JWT_TTL_MINUTES` | no | rca-agent | session lifetime, default 30 |
+| `SESSION_COOKIE_SECURE` | no | rca-agent | default `false`; set `true` only behind HTTPS, or the browser drops the cookie and login fails silently |
+
+```bash
+openssl rand -hex 32   # JWT_SECRET
+openssl rand -hex 24   # SERVICE_API_KEY
+```
+
+Pick your own `ADMIN_USERNAME` and `ADMIN_PASSWORD` — they are yours alone, nothing in this repo ships a default account or a known password. Changing them later does not alter an account that already exists; use the dashboard's **Users** page instead.
+
+```bash
 docker compose up -d --build
 ```
 
@@ -229,7 +271,17 @@ Watch for everything to become healthy:
 docker compose ps
 ```
 
-Then open **<http://localhost:3000>** and click a trigger button under **Manual Trigger**.
+Then open **<http://localhost:3000>** for the overview page, sign in at **/login** with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` you put in `.env`, and click a trigger button under **Manual Trigger**.
+
+Roles are enforced on the backend, not just hidden in the UI:
+
+| Role | Can do |
+|---|---|
+| **ADMIN** | Everything: view all feeds, acknowledge incidents, use the trigger panel, create users and change roles. |
+| **ENGINEER** | View all feeds and acknowledge incidents. `403` on the trigger endpoint and on user management. |
+| **VIEWER** | Read-only. `403` on anything that writes. |
+
+Create additional accounts from the **Users** page in the header (ADMIN only).
 
 > **No training step required.** The trained model, threshold, and Drain3 template state are committed, so anomaly detection is live on first boot. To retrain on your own traffic instead:
 > ```bash
@@ -239,13 +291,18 @@ Then open **<http://localhost:3000>** and click a trigger button under **Manual 
 
 **Service endpoints**
 
-| Service | URL |
-|---|---|
-| Dashboard | <http://localhost:3000> |
-| Orders API | `POST http://localhost:8081/orders` |
-| Anomalies | <http://localhost:8000/anomalies> |
-| Incident reports | <http://localhost:8100/incidents> |
-| Runtime config | <http://localhost:8081/admin/config> |
+| Service | URL | Auth |
+|---|---|---|
+| Dashboard | <http://localhost:3000> | public landing page; `/app` needs a session |
+| Sign in | `POST http://localhost:3000/api/rca/auth/login` | sets an httpOnly `SameSite=Strict` session cookie |
+| Orders API | `POST http://localhost:8081/orders` | open — this is the application's own API |
+| Anomalies | <http://localhost:8000/anomalies> | session cookie or `X-Service-Key` |
+| Incident reports | <http://localhost:8100/incidents> | session cookie |
+| Trigger test orders | `POST http://localhost:8100/trigger` | session cookie, ADMIN only |
+| Runtime config | <http://localhost:8081/admin/config> | `X-Service-Key` |
+| Inventory admin | `http://localhost:8083/admin/restock`, `/admin/inventory` | `X-Service-Key` |
+
+The browser never calls ports 8000 or 8100 directly. nginx in the dashboard container reverse-proxies `/api/detector` and `/api/rca` to them, which is what keeps the session cookie same-site; the open CORS wildcards both backends used through Phase 7 are gone.
 
 ---
 
@@ -278,12 +335,18 @@ AI-Ops/
 │   ├── training/                 # train.py — trains on captured normal traffic
 │   └── models/                   # committed artifacts: v1 weights + threshold (default),
 │                                 #   Drain3 state, and the opt-in v2 weights + threshold
-├── rca-agent/                # FastAPI service: Ollama-backed RCA + closed-loop remediation
-│   └── app/                      # prompt, LLM client, analyzer, remediation, audit store
-├── dashboard/                # React + Vite ops dashboard, served by nginx
+├── rca-agent/                # FastAPI service: Ollama-backed RCA + remediation + auth
+│   └── app/                      # prompt, LLM client, analyzer, remediation, audit store,
+│                                 #   JWT sessions, bcrypt users in SQLite, role enforcement
+├── dashboard/                # React + Vite ops dashboard + landing page, served by nginx
+│   ├── src/pages/                # landing, login, dashboard, users
+│   ├── src/auth/                 # session context, protected routes, API client
+│   └── nginx.conf                # SPA fallback + /api/rca and /api/detector proxies
+├── docs/screenshots/         # the three captures the Screenshots section embeds
 ├── benchmark/                # Phase 7: HDFS benchmark, fault injection, v2 training, results
 │   ├── results/                  # committed metrics JSON + plots
 │   └── RESULTS.md                # full methodology, confusion matrices, superseded runs
+├── .env.example              # secret template; copy to .env (gitignored) before first run
 ├── docker-compose.yml        # 13 services on a shared bridge network
 └── docker-compose.gpu.yml    # optional override: NVIDIA GPU passthrough for Ollama
 ```
@@ -308,7 +371,7 @@ AI-Ops/
 - **The dependency graph is static.** Service topology is hard-coded to match the real call chain rather than discovered from traffic, so the graph would need updating by hand if services were added.
 - **Auto-remediation covers one well-understood failure pattern**, not a general capability. The fix, the verification test, and the pattern match are all specific to the invalid-amount scenario. Generalizing this is genuinely hard and is deliberately not claimed.
 - **A 3B local model is far weaker than frontier models.** It occasionally varies its confidence on identical evidence (0.80–1.00 observed on the same pattern) and can misdiagnose. This is precisely why every action is confidence-gated, independently verified, and reversible — the architecture assumes the model is fallible.
-- **The `/admin/config` endpoint is unauthenticated** and CORS is fully open. Both are appropriate for a local demo and both are deliberate; a production deployment would require an auth boundary on the actuation path.
+- **Auth is scoped to a local deployment.** Sessions are short-lived HS256 JWTs in an httpOnly `SameSite=Strict` cookie, passwords are bcrypt-hashed in SQLite, and `/admin/**` requires a shared service key — but the cookie is not `Secure` by default because the demo is served over plain HTTP, there is no refresh-token rotation or revocation list, and the service key is one static shared secret rather than per-caller credentials.
 
 ---
 

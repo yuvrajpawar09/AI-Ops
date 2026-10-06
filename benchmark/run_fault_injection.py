@@ -23,6 +23,28 @@ FAULT_NOTIF = {"customerId": "bench-notif", "productId": "PROD-1", "quantity": 1
 FAULT_LAT = {"customerId": "bench-latency", "productId": "PROD-1", "quantity": 1, "amount": 179.0}
 
 
+def _service_key() -> str:
+    key = os.environ.get("SERVICE_API_KEY", "").strip()
+    if not key:
+        env_file = os.path.join(os.path.dirname(HERE), ".env")
+        if os.path.exists(env_file):
+            with open(env_file, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line.startswith("SERVICE_API_KEY="):
+                        key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        break
+    if not key:
+        raise SystemExit(
+            "SERVICE_API_KEY is not set and could not be read from .env. "
+            "The admin endpoints and /anomalies require it since Phase 8."
+        )
+    return key
+
+
+SERVICE_HEADERS = {"X-Service-Key": _service_key()}
+
+
 _RESTORE = True
 
 
@@ -67,7 +89,9 @@ class Poller(threading.Thread):
     def run(self):
         while not self._stop_evt.is_set():
             try:
-                r = requests.get(self.url, params={"limit": 500}, timeout=10)
+                r = requests.get(
+                    self.url, params={"limit": 500}, headers=SERVICE_HEADERS, timeout=10
+                )
                 r.raise_for_status()
                 for a in r.json().get("anomalies", []):
                     self.flagged.setdefault(a["traceId"], a["score"])
@@ -138,7 +162,7 @@ def kafka_delivery(trace_ids):
 
 def final_snapshot(url):
     try:
-        r = requests.get(url, params={"limit": 500}, timeout=15)
+        r = requests.get(url, params={"limit": 500}, headers=SERVICE_HEADERS, timeout=15)
         r.raise_for_status()
         return r.json().get("anomalies", [])
     except Exception:
@@ -259,13 +283,15 @@ def main():
 
     print("[setup] forcing rejectZeroAmount=false")
     try:
-        requests.post(ADMIN_URL, json={"rejectZeroAmount": False}, timeout=10)
+        requests.post(
+            ADMIN_URL, json={"rejectZeroAmount": False}, headers=SERVICE_HEADERS, timeout=10
+        )
     except Exception as e:
         print(f"[warn ] could not reach admin config: {e}")
 
     for url in (ORDER_URL.replace("/orders", "/actuator/health"), ANOMALIES_URL):
         try:
-            requests.get(url, timeout=10)
+            requests.get(url, headers=SERVICE_HEADERS, timeout=10)
         except Exception as e:
             raise SystemExit(f"[fatal] prerequisite not reachable: {url} ({e})")
 

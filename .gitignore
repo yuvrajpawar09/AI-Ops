@@ -158,3 +158,14 @@ anomaly-detector/models/*
 # Staging directory written by benchmark/train_v2.py; the promoted copies
 # live in models/ above.
 anomaly-detector/models_v2/
+
+# ---------------------------------------------------------------------------
+# Verification screenshots  (docs/screenshots/)
+# ---------------------------------------------------------------------------
+# A Playwright run writes a dozen full-page captures here. Only the three the
+# README embeds are committed (resized to 1280px wide and palette-compressed);
+# the rest are a local record of that run and stay out of the repo.
+docs/screenshots/*
+!docs/screenshots/landing.png
+!docs/screenshots/login.png
+!docs/screenshots/dashboard.png

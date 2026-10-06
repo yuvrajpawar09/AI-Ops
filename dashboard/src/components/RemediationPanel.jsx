@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PanelError } from "./PanelError.jsx";
+import { PanelSkeleton } from "./PanelSkeleton.jsx";
 import { outcomeMeta } from "../utils/outcome.js";
 import { relativeTime, shortTraceId } from "../utils/format.js";
 
@@ -48,7 +49,7 @@ function RemediationRow({ incident }) {
   );
 }
 
-export function RemediationPanel({ incidents, error }) {
+export function RemediationPanel({ incidents, error, status, loading, onRetry }) {
   const items = incidents?.incidents || [];
   return (
     <section className="panel panel--wide">
@@ -60,7 +61,9 @@ export function RemediationPanel({ incidents, error }) {
       </div>
       <div className="panel-body">
         {error ? (
-          <PanelError message={error} />
+          <PanelError message={error} status={status} onRetry={onRetry} />
+        ) : loading && items.length === 0 ? (
+          <PanelSkeleton rows={2} />
         ) : items.length === 0 ? (
           <div className="panel-empty">No incidents yet.</div>
         ) : (

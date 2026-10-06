@@ -14,6 +14,9 @@ services:
   inventory:
     url: ${INVENTORY_SERVICE_URL:http://localhost:8083}
 
+security:
+  service-api-key: ${SERVICE_API_KEY:}
+
 management:
   endpoints:
     web:

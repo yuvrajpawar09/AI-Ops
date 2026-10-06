@@ -1,4 +1,5 @@
 import threading
+import time
 from collections import deque
 
 
@@ -17,6 +18,15 @@ class IncidentStore:
     def recent(self, limit: int):
         with self._lock:
             return list(self._items)[:limit]
+
+    def acknowledge(self, trace_id: str, username: str):
+        with self._lock:
+            for item in self._items:
+                if item.get("traceId") == trace_id:
+                    item["acknowledgedBy"] = username
+                    item["acknowledgedAt"] = time.time()
+                    return dict(item)
+        return None
 
 
 class AppState:

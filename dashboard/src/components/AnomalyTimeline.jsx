@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PanelError } from "./PanelError.jsx";
+import { PanelSkeleton } from "./PanelSkeleton.jsx";
 import { relativeTime, shortTraceId } from "../utils/format.js";
 
 function LogLine({ event }) {
@@ -36,7 +37,7 @@ function AnomalyRow({ anomaly }) {
   );
 }
 
-export function AnomalyTimeline({ anomalies, error }) {
+export function AnomalyTimeline({ anomalies, error, status, loading, onRetry }) {
   const items = anomalies?.anomalies || [];
   return (
     <section className="panel">
@@ -48,7 +49,9 @@ export function AnomalyTimeline({ anomalies, error }) {
       </div>
       <div className="panel-body">
         {error ? (
-          <PanelError message={error} />
+          <PanelError message={error} status={status} onRetry={onRetry} />
+        ) : loading && items.length === 0 ? (
+          <PanelSkeleton rows={3} />
         ) : items.length === 0 ? (
           <div className="panel-empty">No anomalies flagged yet.</div>
         ) : (

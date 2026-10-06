@@ -14,10 +14,10 @@ import java.util.Map;
 
 /**
  * Phase 6: the actuation surface for the restock_inventory playbook, and a
- * read endpoint for inspecting stock during a demo. Unauthenticated for the
- * same reason order-service's /admin/config is - this is a localhost demo,
- * and the audit trail lives on the caller side in rca-agent's
- * remediationLog. A production system would put an auth boundary here.
+ * read endpoint for inspecting stock during a demo. Phase 8 put the same auth
+ * boundary in front of it as order-service's /admin/config - ServiceKeyFilter
+ * requires the shared SERVICE_API_KEY on every /admin/** request. The audit
+ * trail still lives on the caller side in rca-agent's remediationLog.
  */
 @RestController
 @RequestMapping("/admin")

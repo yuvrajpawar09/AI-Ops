@@ -2,22 +2,18 @@
 FROM node:20-slim AS build
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+# package-lock.json is committed, so npm ci installs the exact locked tree and
+# fails loudly if the lock file and package.json ever drift apart.
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
 
-# Vite inlines import.meta.env.VITE_* as string literals at build time -
-# there's no server process to read env vars from at container start (the
-# run stage is static nginx), so these have to be build args instead.
-# Defaults match the ports docker-compose.yml publishes to the host.
-ARG VITE_ANOMALY_API_URL=http://localhost:8000
-ARG VITE_RCA_API_URL=http://localhost:8100
-ARG VITE_ORDER_API_URL=http://localhost:8081
-ENV VITE_ANOMALY_API_URL=$VITE_ANOMALY_API_URL
-ENV VITE_RCA_API_URL=$VITE_RCA_API_URL
-ENV VITE_ORDER_API_URL=$VITE_ORDER_API_URL
-
+# Phase 8 removed the per-backend VITE_* build args. The browser no longer
+# calls published host ports directly - it calls /api/rca and /api/detector on
+# its own origin, which nginx reverse-proxies (see nginx.conf). That keeps the
+# session cookie same-site and leaves nothing host-specific baked into the
+# bundle.
 RUN npm run build
 
 # ---- Run stage ----

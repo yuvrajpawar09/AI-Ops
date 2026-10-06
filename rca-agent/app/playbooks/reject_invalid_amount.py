@@ -2,7 +2,7 @@ import logging
 
 import requests
 
-from app import config
+from app import config, security
 from app.playbooks.base import Playbook
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ class RejectInvalidAmountPlaybook(Playbook):
         resp = requests.post(
             f"{config.ORDER_SERVICE_URL}/admin/config",
             json={"rejectZeroAmount": True},
+            headers=security.service_headers(),
             timeout=10,
         )
         resp.raise_for_status()
@@ -73,6 +74,7 @@ class RejectInvalidAmountPlaybook(Playbook):
         resp = requests.post(
             f"{config.ORDER_SERVICE_URL}/admin/config",
             json={"rejectZeroAmount": False},
+            headers=security.service_headers(),
             timeout=10,
         )
         return {

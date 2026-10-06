@@ -1,9 +1,10 @@
-:root {
+:root,
+:root[data-theme="dark"] {
   color-scheme: dark;
 
   /* Dark-mode values from the validated reference palette (six-checks run
-     against surface #1a1a19). This dashboard is dark-only by design brief -
-     no light-mode branch to maintain. */
+     against surface #1a1a19). Phase 8 added the light branch below; the
+     landing and login routes stay pinned to this dark set. */
   --surface-0: #0d0d0d; /* page plane */
   --surface-1: #1a1a19; /* card surface */
   --surface-2: #242423; /* raised: hovered rows, inputs */
@@ -660,4 +661,417 @@ code,
   color: var(--text-muted);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* ---------- Phase 8: light theme branch ---------- */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-0: #f6f6f4;
+  --surface-1: #ffffff;
+  --surface-2: #ececea;
+
+  --text-primary: #16160f;
+  --text-secondary: #43433a;
+  --text-muted: #6a6a60;
+
+  --border: rgba(0, 0, 0, 0.12);
+  --gridline: #dededa;
+
+  --status-good: #0a7a0a;
+  --status-warning: #946800;
+  --status-serious: #b4542b;
+  --status-critical: #b32a2a;
+
+  --accent: #1f62b8;
+  --accent-track: #bdd4f0;
+}
+
+/* ---------- Phase 8: app header ---------- */
+
+.dashboard-header {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dashboard-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dashboard-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+
+.header-menu-toggle {
+  display: none;
+  margin-left: auto;
+}
+
+.header-nav-link {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.header-nav-link:hover,
+.header-nav-link.is-active {
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.header-username {
+  font-size: 13px;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.role-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.role-badge--admin {
+  background: rgba(208, 59, 59, 0.16);
+  color: var(--status-critical);
+}
+
+.role-badge--engineer {
+  background: rgba(57, 135, 229, 0.16);
+  color: var(--accent);
+}
+
+.role-badge--viewer {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.header-logout {
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.header-logout:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+@media (max-width: 760px) {
+  .dashboard-header .subtitle {
+    display: none;
+  }
+
+  .header-menu-toggle {
+    display: grid;
+  }
+
+  .dashboard-header-right {
+    display: none;
+    width: 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .dashboard-header-right.is-open {
+    display: flex;
+  }
+}
+
+/* ---------- Phase 8: panel states, filters, acknowledge ---------- */
+
+.panel-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.panel-error {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.panel-retry {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.panel-retry:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.panel-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.panel-filters select {
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.filter-clear {
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.filter-clear:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.incident-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.ack-button {
+  padding: 5px 11px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ack-button:hover:not(:disabled) {
+  background: rgba(57, 135, 229, 0.12);
+}
+
+.ack-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ack-badge {
+  font-size: 11.5px;
+  color: var(--status-good);
+}
+
+.ack-error {
+  font-size: 11.5px;
+  color: var(--status-critical);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.skeleton-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--gridline) 50%, var(--surface-2) 75%);
+  background-size: 240% 100%;
+  animation: skeleton-sweep 1.3s ease-in-out infinite;
+}
+
+.skeleton-bar--wide {
+  width: 100%;
+}
+
+.skeleton-bar--narrow {
+  width: 55%;
+}
+
+@keyframes skeleton-sweep {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+/* ---------- Phase 8: users page ---------- */
+
+.users-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .users-page {
+    grid-template-columns: 1fr;
+  }
+}
+
+.users-table-wrap {
+  overflow-x: auto;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.users-table th,
+.users-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.users-table thead th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.users-table tbody th {
+  font-weight: 550;
+}
+
+.users-table select {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.users-self {
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.users-created {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.users-hint {
+  margin: -12px 0 16px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.users-notice {
+  margin: 0 0 16px;
+  padding: 9px 12px;
+  border: 1px solid rgba(12, 163, 12, 0.35);
+  border-radius: var(--radius-sm);
+  background: rgba(12, 163, 12, 0.1);
+  font-size: 12.5px;
+}
+
+.role-legend {
+  margin: 24px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.role-legend > div {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.role-legend dt {
+  flex-shrink: 0;
+  width: 86px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.role-legend dd {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
 }
