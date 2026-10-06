@@ -32,11 +32,12 @@ class LogSequenceAutoencoder(nn.Module):
     that don't look like what it was shown.
     """
 
-    def __init__(self):
+    def __init__(self, cont_dim=CONT_FEATURE_DIM):
         super().__init__()
         self.template_emb = nn.Embedding(TEMPLATE_VOCAB_SIZE, TEMPLATE_EMB_DIM, padding_idx=0)
         self.service_emb = nn.Embedding(SERVICE_VOCAB_SIZE, SERVICE_EMB_DIM, padding_idx=0)
-        self.input_dim = TEMPLATE_EMB_DIM + SERVICE_EMB_DIM + CONT_FEATURE_DIM
+        self.cont_dim = cont_dim
+        self.input_dim = TEMPLATE_EMB_DIM + SERVICE_EMB_DIM + cont_dim
 
         self.encoder = nn.LSTM(self.input_dim, HIDDEN_DIM, batch_first=True)
         self.decoder = nn.LSTM(HIDDEN_DIM, HIDDEN_DIM, batch_first=True)

@@ -39,7 +39,12 @@ app.add_middleware(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "modelLoaded": state.scorer is not None}
+    return {
+        "status": "ok",
+        "modelLoaded": state.scorer is not None,
+        "featureVersion": config.FEATURE_VERSION,
+        "reopenedTraces": state.buffer.reopened,
+    }
 
 
 @app.get("/anomalies")

@@ -1,0 +1,18 @@
+{
+  "feature_version": "v2",
+  "threshold": 6.913267952768365e-06,
+  "rule": "max(validation p99, validation mean + 3*std)",
+  "val_mean_plus_3std": 6.913267952768365e-06,
+  "chosen_by": "mean+3std",
+  "train_mean": 1.8060354705085047e-06,
+  "train_std": 6.990703695919365e-06,
+  "val_p95": 1.939790081451065e-06,
+  "val_p99": 4.1231237310057515e-06,
+  "val_p999": 2.494226786802782e-05,
+  "n_train": 1000,
+  "n_val": 300,
+  "train_length_distribution": {
+    "10": 1000
+  },
+  "complete_trace_share": 1.0
+}

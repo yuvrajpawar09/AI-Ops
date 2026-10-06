@@ -54,11 +54,36 @@ filebeat.autodiscover:
 processors:
   - add_docker_metadata:
       host: "unix:///var/run/docker.sock"
+  # Infrastructure lines (container startup banners, Spring Boot's own boot
+  # output) carry no traceId. Without a key they would hash to an empty
+  # string; this gives them an explicit bucket so nothing is dropped and the
+  # partitioner always has a key to work with.
+  - copy_fields:
+      fields:
+        - from: traceId
+          to: pkey
+      fail_on_error: false
+      ignore_missing: true
+  - add_fields:
+      when:
+        not:
+          has_fields: ["pkey"]
+      target: ""
+      fields:
+        pkey: "no-trace"
 
 output.kafka:
   hosts: ["kafka:29092"]
   topic: "logs"
-  partition.round_robin:
+  # Key every event by traceId and hash-partition on that key, so all log
+  # lines belonging to one business transaction land in the SAME partition.
+  # Under the previous round_robin setting a single trace was sprayed across
+  # all 3 partitions, which drain independently - a trace could look idle on
+  # one partition while its remaining lines sat in another, so the detector's
+  # idle timeout closed it mid-trace and scored a truncated sequence. That
+  # produced every false positive measured in the first Part B run.
+  key: '%{[pkey]}'
+  partition.hash:
     reachable_only: false
   required_acks: 1
   compression: gzip

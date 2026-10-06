@@ -1,3 +1,5 @@
+import math
+
 import torch
 
 # The 4 known services get stable ids 1-4; id 0 is reserved as the
@@ -20,7 +22,18 @@ MIN_SEQ_LEN = 2  # shorter traces are discarded as noise, not trained/scored on
 
 TEMPLATE_EMB_DIM = 8
 SERVICE_EMB_DIM = 4
-CONT_FEATURE_DIM = 2  # [inter-arrival time, error/warn flag]
+CONT_FEATURE_DIM = 2  # v1: [inter-arrival time, error/warn flag]
+
+# v2 adds a third continuous channel and changes how timing is encoded.
+# v1 squashed inter-arrival as min(dt / 5.0, 5.0), which saturates: a 2.5s
+# stall and a 25s stall both land near the top of the range, and a 2.5s
+# stall only reaches 0.5 while competing against 12 embedding dimensions.
+# v2 uses log1p(dt) with a far wider clip, so latency differences stay
+# distinguishable across orders of magnitude, and adds the trace's total
+# duration (constant across its timesteps) as an explicit global signal -
+# the thing a latency fault actually changes.
+CONT_FEATURE_DIM_V2 = 3  # [log1p inter-arrival, error/warn flag, log1p trace duration]
+TIME_LOG_CLIP = 10.0
 
 _LEVEL_WEIGHT = {"ERROR": 1.0, "WARN": 0.5}
 
@@ -64,6 +77,36 @@ def build_sequence_tensor(events):
         prev_ts = ts
         cont[i, 0] = min(inter_arrival / 5.0, 5.0)  # squash: gaps >5s all read as "slow"
         cont[i, 1] = level_flag(ev["level"])
+        mask[i] = 1.0
+
+    return template_ids, service_ids, cont, mask
+
+
+def build_sequence_tensor_v2(events):
+    """v2 feature builder: log-scaled inter-arrival with a wide clip, plus a
+    per-trace total-duration channel. v1's build_sequence_tensor is left
+    untouched so earlier results stay reproducible."""
+    events = events[:MAX_SEQ_LEN]
+    template_ids = torch.zeros(MAX_SEQ_LEN, dtype=torch.long)
+    service_ids = torch.zeros(MAX_SEQ_LEN, dtype=torch.long)
+    cont = torch.zeros(MAX_SEQ_LEN, CONT_FEATURE_DIM_V2, dtype=torch.float)
+    mask = torch.zeros(MAX_SEQ_LEN, dtype=torch.float)
+
+    total = 0.0
+    if len(events) > 1:
+        total = max(0.0, events[-1]["timestamp"] - events[0]["timestamp"])
+    total_feat = min(math.log1p(total), TIME_LOG_CLIP)
+
+    prev_ts = None
+    for i, ev in enumerate(events):
+        template_ids[i] = ev["template_id"]
+        service_ids[i] = ev["service_id"]
+        ts = ev["timestamp"]
+        dt = 0.0 if prev_ts is None else max(0.0, ts - prev_ts)
+        prev_ts = ts
+        cont[i, 0] = min(math.log1p(dt), TIME_LOG_CLIP)
+        cont[i, 1] = level_flag(ev["level"])
+        cont[i, 2] = total_feat
         mask[i] = 1.0
 
     return template_ids, service_ids, cont, mask

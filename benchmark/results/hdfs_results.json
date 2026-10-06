@@ -1,0 +1,99 @@
+{
+  "dataset": "LogHub HDFS_v1",
+  "blocks_total": 50000,
+  "blocks_anomalous": 1464,
+  "templates_discovered": 36,
+  "component_to_service_id": {
+    "dfs.FSNamesystem": 1,
+    "dfs.DataNode$PacketResponder": 2,
+    "dfs.DataNode$DataXceiver": 3,
+    "dfs.FSDataset": 4
+  },
+  "unparsable_lines": 0,
+  "model_parameters": 16098,
+  "epochs": 30,
+  "train_blocks": 33974,
+  "val_blocks": 4854,
+  "test_blocks": 11172,
+  "test_normal": 9708,
+  "test_anomaly": 1464,
+  "train_error_mean": 0.00017797292093746364,
+  "train_error_std": 0.0016261442797258496,
+  "roc_auc": 0.7930210718555593,
+  "average_precision": 0.5973922253706857,
+  "operating_points": {
+    "production_mean_plus_3std": {
+      "threshold": 0.0050564057601150125,
+      "precision": 0.947261663286004,
+      "recall": 0.31898907103825136,
+      "f1": 0.4772611139499234,
+      "false_positive_rate": 0.0026782035434693035,
+      "confusion_matrix": {
+        "tn": 9682,
+        "fp": 26,
+        "fn": 997,
+        "tp": 467
+      }
+    },
+    "validation_p95_fpr5pct": {
+      "threshold": 0.0003488773974822822,
+      "precision": 0.5816696914700544,
+      "recall": 0.4378415300546448,
+      "f1": 0.49961028838659394,
+      "false_positive_rate": 0.04748660898228265,
+      "confusion_matrix": {
+        "tn": 9247,
+        "fp": 461,
+        "fn": 823,
+        "tp": 641
+      }
+    },
+    "validation_p99_fpr1pct": {
+      "threshold": 0.0013999549194704782,
+      "precision": 0.838957055214724,
+      "recall": 0.37363387978142076,
+      "f1": 0.5170132325141777,
+      "false_positive_rate": 0.010815822002472188,
+      "confusion_matrix": {
+        "tn": 9603,
+        "fp": 105,
+        "fn": 917,
+        "tp": 547
+      }
+    },
+    "validation_p999_fpr0p1pct": {
+      "threshold": 0.028245791722090633,
+      "precision": 0.9803063457330415,
+      "recall": 0.30601092896174864,
+      "f1": 0.4664237376366476,
+      "false_positive_rate": 0.000927070457354759,
+      "confusion_matrix": {
+        "tn": 9699,
+        "fp": 9,
+        "fn": 1016,
+        "tp": 448
+      }
+    }
+  },
+  "keyword_baseline": {
+    "precision": 0.30401771591268584,
+    "recall": 0.6564207650273224,
+    "f1": 0.4155675675675676,
+    "confusion_matrix": {
+      "tn": 7508,
+      "fp": 2200,
+      "fn": 503,
+      "tp": 961
+    }
+  },
+  "best_achievable_f1_on_test": {
+    "threshold": 0.00028302716247726524,
+    "precision": 0.5604738154613467,
+    "recall": 0.6140710382513661,
+    "f1": 0.5860495436766623
+  },
+  "artifacts": {
+    "pr_curve": "benchmark\\results\\hdfs_pr_curve.png",
+    "threshold_sweep": "benchmark\\results\\hdfs_threshold_sweep.png"
+  }
+}

@@ -125,6 +125,15 @@ ollama-models/
 docker-compose.override.yml
 
 # ---------------------------------------------------------------------------
+# Benchmark data  (benchmark/data/)
+# ---------------------------------------------------------------------------
+# The raw LogHub HDFS_v1 download (~180 MB) and the derived subsample cache
+# (~100 MB). Regenerate with: python benchmark/download_hdfs.py
+# benchmark/results/ is NOT ignored - the metrics JSON and plots are the
+# deliverable and are meant to be committed.
+benchmark/data/
+
+# ---------------------------------------------------------------------------
 # Trained model artifacts  (anomaly-detector/models/)
 # ---------------------------------------------------------------------------
 # Everything in models/ is ignored by default so stray experiment output never
@@ -142,3 +151,10 @@ anomaly-detector/models/*
 !anomaly-detector/models/lstm_autoencoder.pt
 !anomaly-detector/models/threshold.json
 !anomaly-detector/models/drain3_state.bin
+# v2 artifacts ship alongside the default v1 model as an opt-in experiment
+# (FEATURE_VERSION=v2 plus MODEL_PATH / THRESHOLD_PATH).
+!anomaly-detector/models/lstm_autoencoder_v2.pt
+!anomaly-detector/models/threshold_v2.json
+# Staging directory written by benchmark/train_v2.py; the promoted copies
+# live in models/ above.
+anomaly-detector/models_v2/

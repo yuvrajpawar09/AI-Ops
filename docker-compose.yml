@@ -100,6 +100,13 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     container_name: kafka
+    # After a `docker compose stop` + `start`, Zookeeper restores the broker's
+    # ephemeral znode from its snapshot before the old session has expired, so
+    # Kafka's registerBroker hits NodeExistsException and exits(1) - taking
+    # kafka-init, filebeat, anomaly-detector and rca-agent down with it. One
+    # retry is enough: by then Zookeeper has expired the stale session. Bounded
+    # so a genuine misconfiguration still fails loudly instead of looping.
+    restart: "on-failure:3"
     depends_on:
       - zookeeper
     ports:
@@ -224,13 +231,6 @@ services:
       - ollama-models:/root/.ollama
     networks:
       - aiops-net
-    # No GPU reservation here - runs on CPU, which is fine for a 3B model
-    # invoked only on flagged anomalies, not a hot path. If you have an
-    # NVIDIA GPU and want acceleration, install Ollama natively on the host
-    # instead and point rca-agent at it: set OLLAMA_URL to
-    # http://host.docker.internal:11434 in the rca-agent service below
-    # (Docker Desktop resolves that hostname to the host automatically on
-    # Windows/Mac), then remove/stop this ollama service.
 
   # One-shot job: waits for the Ollama server to accept connections, then
   # pulls the model - so `docker compose up` alone is enough, with no

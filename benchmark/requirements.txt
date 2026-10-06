@@ -1,0 +1,7 @@
+torch==2.3.1
+drain3==0.9.11
+numpy==1.26.4
+scikit-learn==1.5.1
+matplotlib==3.9.2
+requests==2.32.3
+kafka-python==2.0.2

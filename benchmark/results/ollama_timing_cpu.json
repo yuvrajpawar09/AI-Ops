@@ -1,0 +1,49 @@
+{
+  "label": "CPU",
+  "model": "qwen2.5:3b",
+  "reps": [
+    {
+      "wall_seconds": 47.19878888130188,
+      "total_duration_s": 47.196152908,
+      "load_duration_s": 0.203852574,
+      "prompt_eval_count": 630,
+      "eval_count": 180,
+      "eval_duration_s": 10.632528,
+      "content_chars": 910,
+      "tokens_per_second": 16.92918184649972
+    },
+    {
+      "wall_seconds": 46.78365731239319,
+      "total_duration_s": 46.779564896,
+      "load_duration_s": 0.235373121,
+      "prompt_eval_count": 630,
+      "eval_count": 131,
+      "eval_duration_s": 7.863287,
+      "content_chars": 660,
+      "tokens_per_second": 16.659699690472955
+    },
+    {
+      "wall_seconds": 47.22519397735596,
+      "total_duration_s": 47.203002357,
+      "load_duration_s": 0.298226928,
+      "prompt_eval_count": 630,
+      "eval_count": 139,
+      "eval_duration_s": 8.497306,
+      "content_chars": 738,
+      "tokens_per_second": 16.358125740087505
+    }
+  ],
+  "wall_mean": 47.06921339035034,
+  "wall_min": 46.78365731239319,
+  "wall_max": 47.22519397735596,
+  "tokens_per_second_mean": 16.649002425686728,
+  "warmup": {
+    "wall_seconds": 45.435452461242676,
+    "total_duration_s": 45.406916033,
+    "load_duration_s": 0.275617991,
+    "prompt_eval_count": 630,
+    "eval_count": 157,
+    "eval_duration_s": 9.081519,
+    "content_chars": 825
+  }
+}

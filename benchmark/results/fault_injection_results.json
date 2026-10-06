@@ -1,0 +1,160 @@
+{
+  "pipeline_integrity": {
+    "traces_checked": 400,
+    "delivery_complete": 400,
+    "delivery_complete_pct": 1.0,
+    "incomplete_delivery": 0,
+    "spread_exceeds_idle_timeout": 0,
+    "idle_timeout_seconds": 8.0,
+    "kafka_spread_seconds": {
+      "median": 0.009999990463256836,
+      "p95": 2.5450000762939453,
+      "max": 2.562000036239624
+    },
+    "flagged_traces_cross_checked": 75,
+    "flagged_traces_with_full_event_count": 75,
+    "assembly_complete_pct": 1.0,
+    "split_closures": 0,
+    "split_closure_examples": [],
+    "duplicate_trace_ids_in_store": 0,
+    "reopened_traces_merged": 28
+  },
+  "keyword_baseline": {
+    "precision": 1.0,
+    "recall": 0.75,
+    "f1": 0.8571428571428571,
+    "confusion_matrix": {
+      "tp": 75,
+      "fp": 0,
+      "fn": 25,
+      "tn": 300
+    },
+    "false_positive_rate": 0.0,
+    "per_fault_recall": {
+      "amount_zero": {
+        "n": 25,
+        "flagged": 25,
+        "recall": 1.0
+      },
+      "inventory_latency": {
+        "n": 25,
+        "flagged": 0,
+        "recall": 0.0
+      },
+      "normal": {
+        "n": 300,
+        "flagged": 0,
+        "recall": 0.0
+      },
+      "notification_down": {
+        "n": 25,
+        "flagged": 25,
+        "recall": 1.0
+      },
+      "out_of_stock": {
+        "n": 25,
+        "flagged": 25,
+        "recall": 1.0
+      }
+    }
+  },
+  "orders_sent": 400,
+  "orders_with_traceid": 400,
+  "orders_dropped": 0,
+  "flagged_traces_total": 90,
+  "confusion_matrix": {
+    "tp": 80,
+    "fp": 10,
+    "fn": 20,
+    "tn": 290
+  },
+  "precision": 0.8888888888888888,
+  "recall": 0.8,
+  "f1": 0.8421052631578948,
+  "per_fault_recall": {
+    "amount_zero": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0
+    },
+    "inventory_latency": {
+      "n": 25,
+      "flagged": 5,
+      "recall": 0.2
+    },
+    "normal": {
+      "n": 300,
+      "flagged": 10,
+      "recall": 0.03333333333333333
+    },
+    "notification_down": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0
+    },
+    "out_of_stock": {
+      "n": 25,
+      "flagged": 25,
+      "recall": 1.0
+    }
+  },
+  "status_mix": {
+    "amount_zero": {
+      "FAILED": 25
+    },
+    "inventory_latency": {
+      "COMPLETED": 25
+    },
+    "normal": {
+      "COMPLETED": 300
+    },
+    "notification_down": {
+      "COMPLETED": 25
+    },
+    "out_of_stock": {
+      "INVENTORY_FAILED": 25
+    }
+  },
+  "settle_seconds": 90,
+  "seed": 42,
+  "comparison_detector": {
+    "url": "http://localhost:8002/anomalies",
+    "precision": 0.9009009009009009,
+    "recall": 1.0,
+    "f1": 0.947867298578199,
+    "false_positive_rate": 0.03666666666666667,
+    "confusion_matrix": {
+      "tp": 100,
+      "fp": 11,
+      "fn": 0,
+      "tn": 289
+    },
+    "per_fault_recall": {
+      "amount_zero": {
+        "n": 25,
+        "flagged": 25,
+        "recall": 1.0
+      },
+      "inventory_latency": {
+        "n": 25,
+        "flagged": 25,
+        "recall": 1.0
+      },
+      "normal": {
+        "n": 300,
+        "flagged": 11,
+        "recall": 0.03666666666666667
+      },
+      "notification_down": {
+        "n": 25,
+        "flagged": 25,
+        "recall": 1.0
+      },
+      "out_of_stock": {
+        "n": 25,
+        "flagged": 25,
+        "recall": 1.0
+      }
+    }
+  }
+}

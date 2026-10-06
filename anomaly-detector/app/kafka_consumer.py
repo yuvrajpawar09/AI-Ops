@@ -17,26 +17,48 @@ class TraceBuffer:
     """Thread-safe buffer of in-flight traces, keyed by traceId. Written to
     by the Kafka consumer thread, read/drained by the trace-closer thread."""
 
-    def __init__(self):
+    def __init__(self, grace_seconds=None):
         self._lock = threading.Lock()
         self._traces = defaultdict(list)  # traceId -> list of enriched events
         self._last_seen = {}  # traceId -> wall-clock time of its last event
+        # Lines for one trace can straggle in after the idle timeout has
+        # already closed it - the pipeline delivers the head promptly and the
+        # tail a beat later. Without this, the remainder opened a brand-new
+        # buffer entry and got scored as a standalone fragment, which looks
+        # exactly like a broken transaction and fires a false positive. We
+        # retain closed traces for a grace window so late lines can be merged
+        # back and the whole trace rescored in place.
+        self._closed = {}  # traceId -> (events, closed_at)
+        self.grace_seconds = (
+            config.CLOSED_TRACE_GRACE_SECONDS if grace_seconds is None else grace_seconds
+        )
+        self.reopened = 0
 
     def add(self, trace_id, event):
         with self._lock:
+            if trace_id in self._closed:
+                retained, _ = self._closed.pop(trace_id)
+                self._traces[trace_id] = retained + self._traces[trace_id]
+                self.reopened += 1
             self._traces[trace_id].append(event)
             self._last_seen[trace_id] = time.time()
 
     def pop_idle(self, idle_seconds):
         """Removes and returns (traceId, events) for every trace that has
-        gone quiet for at least idle_seconds - i.e. the flow is done."""
+        gone quiet for at least idle_seconds - i.e. the flow is done. Closed
+        traces are retained for grace_seconds so late-arriving lines can
+        reopen and extend them rather than forming a second fragment."""
         now = time.time()
         closed = []
         with self._lock:
             idle_ids = [tid for tid, last in self._last_seen.items() if now - last >= idle_seconds]
             for tid in idle_ids:
-                closed.append((tid, self._traces.pop(tid)))
+                events = self._traces.pop(tid)
                 del self._last_seen[tid]
+                self._closed[tid] = (events, now)
+                closed.append((tid, events))
+            for tid in [t for t, (_, ts) in self._closed.items() if now - ts > self.grace_seconds]:
+                del self._closed[tid]
         return closed
 
 
@@ -71,7 +93,7 @@ def _consume(state):
             consumer = KafkaConsumer(
                 config.KAFKA_TOPIC,
                 bootstrap_servers=config.KAFKA_BOOTSTRAP_SERVERS,
-                group_id="anomaly-detector",
+                group_id=config.KAFKA_GROUP_ID,
                 auto_offset_reset="latest",
                 enable_auto_commit=True,
             )
@@ -99,7 +121,7 @@ def _close_idle_traces(state):
 
             score, is_anomaly = state.scorer.score(events)
             if is_anomaly:
-                state.anomaly_store.add({
+                state.anomaly_store.upsert({
                     "traceId": trace_id,
                     "score": round(score, 5),
                     "threshold": round(state.scorer.threshold, 5),
@@ -119,6 +141,8 @@ def _close_idle_traces(state):
                     "Anomaly flagged for trace %s (score=%.5f > threshold=%.5f)",
                     trace_id, score, state.scorer.threshold,
                 )
+            else:
+                state.anomaly_store.remove(trace_id)
 
 
 def start_background_threads(state):

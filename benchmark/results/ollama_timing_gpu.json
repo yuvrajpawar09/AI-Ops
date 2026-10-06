@@ -1,0 +1,49 @@
+{
+  "label": "GPU",
+  "model": "qwen2.5:3b",
+  "reps": [
+    {
+      "wall_seconds": 6.5529961585998535,
+      "total_duration_s": 6.531517072,
+      "load_duration_s": 0.151566599,
+      "prompt_eval_count": 630,
+      "eval_count": 210,
+      "eval_duration_s": 3.189913,
+      "content_chars": 1017,
+      "tokens_per_second": 65.83251643540122
+    },
+    {
+      "wall_seconds": 3.157597780227661,
+      "total_duration_s": 3.145079163,
+      "load_duration_s": 0.134704199,
+      "prompt_eval_count": 630,
+      "eval_count": 198,
+      "eval_duration_s": 2.987711,
+      "content_chars": 910,
+      "tokens_per_second": 66.27147003174002
+    },
+    {
+      "wall_seconds": 2.907726287841797,
+      "total_duration_s": 2.903138609,
+      "load_duration_s": 0.136232417,
+      "prompt_eval_count": 630,
+      "eval_count": 181,
+      "eval_duration_s": 2.745021,
+      "content_chars": 925,
+      "tokens_per_second": 65.93756477637147
+    }
+  ],
+  "wall_mean": 4.2061067422231035,
+  "wall_min": 2.907726287841797,
+  "wall_max": 6.5529961585998535,
+  "tokens_per_second_mean": 66.01385041450423,
+  "warmup": {
+    "wall_seconds": 36.94118928909302,
+    "total_duration_s": 36.933298463,
+    "load_duration_s": 9.419739945,
+    "prompt_eval_count": 630,
+    "eval_count": 206,
+    "eval_duration_s": 7.64219,
+    "content_chars": 965
+  }
+}

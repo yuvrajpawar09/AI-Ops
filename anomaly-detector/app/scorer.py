@@ -5,15 +5,27 @@ import os
 import torch
 
 from app import config
-from app.features import build_sequence_tensor
+from app.features import (
+    CONT_FEATURE_DIM,
+    CONT_FEATURE_DIM_V2,
+    build_sequence_tensor,
+    build_sequence_tensor_v2,
+)
 from app.model import LogSequenceAutoencoder, sequence_errors
 
 logger = logging.getLogger(__name__)
 
 
+def _feature_fn():
+    if config.FEATURE_VERSION == "v2":
+        return build_sequence_tensor_v2, CONT_FEATURE_DIM_V2
+    return build_sequence_tensor, CONT_FEATURE_DIM
+
+
 class AnomalyScorer:
     def __init__(self):
-        self.model = LogSequenceAutoencoder()
+        self.build, cont_dim = _feature_fn()
+        self.model = LogSequenceAutoencoder(cont_dim=cont_dim)
         # weights_only=True restricts unpickling to plain tensors/primitives.
         # training/train.py saves a bare state_dict, so nothing here needs the
         # unrestricted loader - and since the .pt ships in the public repo,
@@ -28,13 +40,14 @@ class AnomalyScorer:
             stats = json.load(f)
         self.threshold = stats["threshold"]
 
-        logger.info("Loaded anomaly model from %s (threshold=%.5f)", config.MODEL_PATH, self.threshold)
+        logger.info("Loaded %s anomaly model from %s (threshold=%.5f)",
+                    config.FEATURE_VERSION, config.MODEL_PATH, self.threshold)
 
     @torch.no_grad()
     def score(self, events):
         """events: time-sorted list of enriched dicts (see kafka_consumer).
         Returns (score, is_anomaly)."""
-        template_ids, service_ids, cont, mask = build_sequence_tensor(events)
+        template_ids, service_ids, cont, mask = self.build(events)
         recon, target = self.model(
             template_ids.unsqueeze(0), service_ids.unsqueeze(0), cont.unsqueeze(0)
         )

@@ -95,10 +95,10 @@ The remediation path is the part worth reading closely: the agent does not stop 
 These are figures observed in real runs of the system, not projections. The trained model, its threshold, and the Drain3 state are all committed, so a fresh clone reproduces this behavior without retraining.
 
 **Anomaly detection**
-- Model: LSTM autoencoder, **16,098 trainable parameters**, 67 KB on disk — small enough to train on a laptop CPU in seconds.
-- Trained on **161 real captured trace sequences** of normal traffic.
-- Learned threshold: **0.2927** (training-set mean 0.1490 + 3σ of 0.0479).
-- Real failures scored clearly above it: **0.322** for an out-of-stock cascade, **0.346** for an invalid-amount payment decline. The margin between normal and anomalous is real, not marginal.
+- Model: LSTM autoencoder, **16,259 trainable parameters**, 68 KB on disk — small enough to train on a laptop CPU in seconds.
+- Trained on **1,000 captured trace sequences** of deliberately varied normal traffic, with a separate 300-trace validation set used to pick the threshold.
+- Threshold rule: `max(validation p99, validation mean + 3σ)` — chosen without ever looking at anomalous data.
+- Measured against labeled faults rather than asserted; see **[Results](#results)** below.
 
 **Root cause analysis**
 - The local 3B model produced correct, well-reasoned reports — e.g. correctly identifying `inventory-service` as the origin of an out-of-stock cascade at **0.90 confidence**, listing all four affected services in call order, and proposing a relevant fix.
@@ -119,15 +119,107 @@ Every attempt — including the ones where it declined to act — is written to 
 
 ---
 
+## Results
+
+Measured, not asserted. Full methodology, confusion matrices, plots and the list of superseded runs are in **[benchmark/RESULTS.md](benchmark/RESULTS.md)**.
+
+### Public labeled dataset — LogHub HDFS_v1
+
+50,000 blocks (1,464 anomalous, the natural 2.93% rate), held-out test of 9,708 normal / 1,464 anomalous. Thresholds picked on training/validation normals only; test labels never used to select an operating point.
+
+**ROC-AUC 0.7930 · Average precision 0.5974**
+
+| | LSTM (validation-p99) | Keyword baseline |
+|---|---|---|
+| Precision | **0.839** | 0.304 |
+| Recall | 0.374 | **0.656** |
+| F1 | **0.517** | 0.416 |
+| **False-positive rate** | **1.1%** | **22.7%** |
+
+**The LSTM's advantage is precision and false-alarm rate, not recall — and its recall is plainly lower.** Keyword matching catches more anomalies (0.656 vs 0.374) but flags **2,200 of 9,708 healthy blocks**; the LSTM flags **105**. That is a ~**21× reduction in false alarms** at 2.8× the precision. A detector that fires on a quarter of healthy traffic gets muted within a week, which is why the false-alarm axis is the one that decides whether a detector survives contact with an on-call rota. The LSTM also wins at matched recall: at the baseline's own 0.656 recall it reaches precision 0.350 vs 0.304.
+
+Honest caveat: ROC-AUC 0.79 is **moderate, not strong**. A 16K-parameter model transferred to a foreign domain — with second-resolution timestamps and sequences truncated at 16 events on ~19-line blocks — is well short of purpose-built HDFS detectors, which reach F1 > 0.9.
+
+### End-to-end fault injection — this system
+
+400 labeled orders (300 normal + 4 fault types × 25) through the live stack, with remediation disabled so it cannot alter the measurement. Pipeline integrity gate: **100% delivery, 100% assembly, 0 split closures.**
+
+| | **v1 (shipped default)** | v2 (experimental, opt-in) | Keyword |
+|---|---|---|---|
+| Precision | 0.8889 | 0.9009 | **1.0000** |
+| Recall | 0.8000 | **1.0000** | 0.7500 |
+| F1 | 0.8421 | **0.9479** | 0.8571 |
+| FPR | **3.3%** | 3.7% | **0.0%** |
+
+| Fault type | **v1** | v2 | Keyword |
+|---|---|---|---|
+| `amount_zero` | 1.000 | 1.000 | 1.000 |
+| `notification_down` | 1.000 | 1.000 | 1.000 |
+| `out_of_stock` | 1.000 | 1.000 | 1.000 |
+| **`inventory_latency`** | 0.200 | **1.000** | 0.000 |
+
+On *this* system the keyword baseline is genuinely strong — zero false positives — because four small services with a disciplined log vocabulary only emit WARN/ERROR on real failures. The LSTM's margin over it comes almost entirely from **`inventory_latency`, the one fault that emits no WARN or ERROR line at all**: the silent, logic-level failure this project exists to catch. The contrast with HDFS, where the same baseline had a 22.7% false-positive rate, shows how much its apparent strength depends on log hygiene.
+
+**v1 is the shipped default; v2 is an experimental alternative feature set, off by default.** v2 replaces the saturating inter-arrival squash with `log1p(dt)` and adds a trace-duration channel, which is why it catches all 25 latency faults where v1 catches 5. Enable it with:
+
+```bash
+FEATURE_VERSION=v2 \
+MODEL_PATH=/app/models/lstm_autoencoder_v2.pt \
+THRESHOLD_PATH=/app/models/threshold_v2.json
+```
+
+### Why v2 is not the default
+
+v2 passed a promotion rule fixed in advance (FPR within 2 points of v1 — it was +0.33 — and latency recall above 0.80 — it was 1.000), was promoted, and was then reverted after a fresh-clone check on a freshly started stack:
+
+| Check | v2 | v1 |
+|---|---|---|
+| First (cold) order after `docker compose up` | **flagged** | **not flagged** |
+| 12 warm normal orders | **1 of 12 flagged** | **0 of 12 flagged** |
+
+The cold-start trace v2 flagged was structurally perfect — 10 events, correct ordering, all INFO — just slow (0.253 s total against ~0.018 s warm) because the JVM had been up for nine seconds. Timing sensitivity is v2's whole premise, so routine warm-up reads as an anomaly, and on a demo the very first order would likely be flagged.
+
+**This comparison has a memory confound.** The v2 check ran with Docker capped at 7.6 GB, which was actively OOM-killing containers (`exit 137` on `kafka` and `anomaly-detector`). The v1 check ran at a 10 GB cap and passed the identical sequence. A memory-starved host slows JVM startup and GC — precisely the signal v2 keys on — and **v2 was not retested at 10 GB**, so this should not be read as a clean verdict on v2.
+
+**The lesson is about the rule, not the model.** The promotion rule was *relative* ("within 2 points of v1") with **no absolute false-positive ceiling**, and Part B warms the stack with hundreds of orders before measuring, so cold-start traffic was never in the evaluation set at all. A relative rule cannot catch a model whose errors concentrate in a regime the benchmark does not sample.
+
+**These fault-injection figures come from a single 400-order run, and that same run informed the v2 promotion decision** — it is not an independent hold-out, so the v2 F1 of 0.9479 is a single-run, promotion-time measurement of an experimental configuration, not a validated generalization estimate. The false-positive rate is especially noisy at this sample size: v1's FPR ranged 0.7%–5.0% across runs under identical protocol, so treat all FPR figures as ±2 points. The HDFS numbers above *are* a proper held-out evaluation.
+
+---
+
 ## Quick start
 
-**Prerequisites:** Docker Desktop (or Docker Engine + Compose v2), roughly 8 GB free RAM and 5 GB free disk.
+**Prerequisites:** Docker Desktop (or Docker Engine + Compose v2), **about 10 GB of memory available to Docker**, and 5 GB free disk.
+
+> **Raise the Docker memory cap before the first `up`.** The full stack is thirteen Compose services — eleven long-running plus two one-shot init containers — including a JVM per microservice alongside Kafka, Zookeeper and Ollama. Docker Desktop's default WSL2 cap of roughly 7.6 GB was **not** enough here — `kafka` and `anomaly-detector` were OOM-killed (`exit 137`) mid-run and Docker Desktop itself crashed twice. On Windows, create or edit `C:\Users\<you>\.wslconfig`:
+>
+> ```ini
+> [wsl2]
+> memory=10GB
+> swap=4GB
+> ```
+>
+> then apply it — this stops every WSL distro, so close other WSL terminals first:
+>
+> ```powershell
+> wsl --shutdown
+> ```
+>
+> Restart Docker Desktop and confirm the new cap with `docker info --format "{{.MemTotal}}"` (expect ~10.4e9, not ~7.6e9). On Docker Desktop for macOS the equivalent setting is *Settings → Resources → Memory*.
 
 ```bash
 git clone https://github.com/yuvrajpawar09/AI-Ops.git
 cd AI-Ops
 docker compose up -d --build
 ```
+
+**The default is CPU and needs no GPU runtime.** If you have an NVIDIA GPU, add the override to run the LLM on it:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+```
+
+That cuts an incident report from ~47 s to ~4 s (measured, [benchmark/RESULTS.md](benchmark/RESULTS.md)). Without an NVIDIA container runtime the override will fail to start, so use the plain command above.
 
 On the **first run only**, a helper container pulls the `qwen2.5:3b` model (~2 GB) into a named Docker volume. This takes a few minutes; the dashboard and detection pipeline come up before it finishes, and the RCA agent waits for it automatically.
 
@@ -184,11 +276,16 @@ AI-Ops/
 ├── anomaly-detector/         # FastAPI service: Drain3 template mining + LSTM autoencoder
 │   ├── app/                      # consumer, feature extraction, model, scoring, API
 │   ├── training/                 # train.py — trains on captured normal traffic
-│   └── models/                   # committed artifacts: weights, threshold, Drain3 state
+│   └── models/                   # committed artifacts: v1 weights + threshold (default),
+│                                 #   Drain3 state, and the opt-in v2 weights + threshold
 ├── rca-agent/                # FastAPI service: Ollama-backed RCA + closed-loop remediation
 │   └── app/                      # prompt, LLM client, analyzer, remediation, audit store
 ├── dashboard/                # React + Vite ops dashboard, served by nginx
-└── docker-compose.yml        # 13 services on a shared bridge network
+├── benchmark/                # Phase 7: HDFS benchmark, fault injection, v2 training, results
+│   ├── results/                  # committed metrics JSON + plots
+│   └── RESULTS.md                # full methodology, confusion matrices, superseded runs
+├── docker-compose.yml        # 13 services on a shared bridge network
+└── docker-compose.gpu.yml    # optional override: NVIDIA GPU passthrough for Ollama
 ```
 
 ---
@@ -207,7 +304,7 @@ AI-Ops/
 ## Honest limitations
 
 - **Training data is synthetic and small.** The model learned from ~161 self-generated trace sequences on a 4-service system, not diverse production traffic. It has not been validated against workload patterns it didn't generate itself.
-- **No formal precision/recall benchmark.** The figures above are observed behavior from real runs, not evaluation metrics against a labeled dataset. Detection quality is demonstrated, not statistically characterized.
+- **Benchmarked, but on one subsample and single runs.** Detection is now measured against labeled data (LogHub HDFS_v1) and labeled fault injection, but Part A uses a 50,000-block subsample rather than the full 575,061, and Part B is a single 300-normal run whose false-positive rate carries roughly +/-2 points of noise.
 - **The dependency graph is static.** Service topology is hard-coded to match the real call chain rather than discovered from traffic, so the graph would need updating by hand if services were added.
 - **Auto-remediation covers one well-understood failure pattern**, not a general capability. The fix, the verification test, and the pattern match are all specific to the invalid-amount scenario. Generalizing this is genuinely hard and is deliberately not claimed.
 - **A 3B local model is far weaker than frontier models.** It occasionally varies its confidence on identical evidence (0.80–1.00 observed on the same pattern) and can misdiagnose. This is precisely why every action is confidence-gated, independently verified, and reversible — the architecture assumes the model is fallible.
@@ -217,7 +314,10 @@ AI-Ops/
 
 ## Roadmap
 
-- Benchmark detection precision/recall against a public dataset (e.g. LogHub / HDFS, BGL) to replace observed behavior with measured metrics.
+- Sequence-length ablation (16 / 32 / 64). Already plumbed via `--seq-len`, which overrides `MAX_SEQ_LEN` in-process without touching production config; not yet run.
+- Retrain v2 with **cold-start-inclusive validation** — validation traffic drawn from the first seconds after startup, not only from warm steady state — and an **absolute threshold floor** so the cutoff cannot collapse toward zero as training error shrinks. Re-test at the 10 GB memory cap to remove the confound noted in the Results section.
+- Re-run the HDFS benchmark with v2 features, and repeat the fault injection n times for confidence intervals on the false-positive rate.
+- Extend to BGL and other LogHub datasets to test whether the transfer result generalizes.
 - Generalize remediation beyond a single pattern — a small library of pattern/fix/verification triples with a common safety wrapper.
 - Discover the service dependency graph dynamically from observed `traceId` call sequences instead of declaring it statically.
 - Persist anomalies and incidents to a datastore so history survives restarts and can be analyzed over time.

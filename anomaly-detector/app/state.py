@@ -19,6 +19,23 @@ class AnomalyStore:
         with self._lock:
             self._items.appendleft(item)
 
+    def upsert(self, item):
+        with self._lock:
+            tid = item.get("traceId")
+            for i, existing in enumerate(self._items):
+                if existing.get("traceId") == tid:
+                    del self._items[i]
+                    break
+            self._items.appendleft(item)
+
+    def remove(self, trace_id):
+        with self._lock:
+            for i, existing in enumerate(self._items):
+                if existing.get("traceId") == trace_id:
+                    del self._items[i]
+                    return True
+        return False
+
     def recent(self, limit):
         with self._lock:
             return list(self._items)[:limit]
